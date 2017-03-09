@@ -1,13 +1,13 @@
 var mysql = require("mysql");
 var inquirer = require("inquirer");
+var colors = require("colors");
+var Table = require("cli-table");
 
 var connection = mysql.createConnection({
     host: "localhost",
     port: 8889,
-
     // username
     user: "root",
-
     // password
     password: "root",
     database: "Bamazon"
@@ -15,51 +15,67 @@ var connection = mysql.createConnection({
 
 connection.connect(function(err) {
     if (err) throw err;
-    console.log("connected as id " + connection.threadId);
+    // console.log("connected as id " + connection.threadId);
 });
 
 
-connection.query("SELECT * FROM products", function(err, res) {
-    console.log("Item ID | Product Name | Department Name | Price | Quantity Available")
-    for (var i = 0; i < res.length; i++) {
-        console.log(res[i].item_id + " | " + res[i].product_name + " | " + res[i].department_name + " | " + res[i].price + " | " + res[i].stock_quantity);
-    }
-    console.log("-----------------------------------");
-});
 
-function ItemToBuy(itemPick, quantity) {
-    this.itemPick = itemPick;
-    this.quanity = quantity;
+function selection() {
+    connection.query('SELECT * FROM products', function(err, res) {
+        if (err) throw err;
 
-    this.printInfo = function() {
-        console.log("You picked Item ID " + this.itemPick + "\n, and you would like to buy " + this.quantity +
-            " of them.");
-    };
+        var table = new Table({
+            head: ["Product ID".magenta, "Product Name".magenta, "Department Name".magenta, "Price".magenta, "Quantity".magenta],
+            colWidths: [13, 33, 25, 13, 10],
+        });
+
+        for (var i = 0; i < res.length; i++) {
+            table.push(
+                [res[i].item_id, res[i].product_name, res[i].department_name, parseFloat(res[i].price).toFixed(2), res[i].stock_quantity]
+            );
+        }
+
+        console.log(table.toString());
+
+        inquirer.prompt([{
+                type: "number",
+                message: "Please enter the Item ID of the product you would like to buy.",
+                name: "itemNumber"
+            },
+            {
+                type: "number",
+                message: "How many would you like to buy?",
+                name: "howMany"
+            },
+        ]).then(function(answer) {
+
+            console.log("You picked Item ID " + answer.itemNumber + ", and you would like to buy " + answer.howMany + " of them.");
+
+            if (res[answer.itemNumber - 1].stock_quantity > answer.howMany) {
+                console.log("Ok, that's in stock.");
+                var updatedQuantity = parseInt(res[answer.itemNumber - 1].stock_quantity) - parseInt(answer.howMany);
+                var total = parseFloat(answer.howMany) * parseFloat(res[answer.itemNumber - 1].price);
+                total = total.toFixed(2);
+
+                connection.query("UPDATE products SET ? WHERE ?", [{
+                    stock_quantity: updatedQuantity
+                }, {
+                    item_id: answer.itemNumber
+                }], function(error, results) {
+                    if (error) throw error;
+
+                    console.log("Your order for " + answer.howMany + " " + res[answer.itemNumber - 1].product_name +
+                        "(s) has been placed.");
+                    console.log("Your total is $" + total);
+                    // orderMore();
+                });
+
+
+            } else if (res[answer.itemNumber - 1].stock_quantity < answer.howMany) {
+                console.log("Sorry we only have " + res[answer.itemNumber - 1].stock_quantity + " items remaining.");
+
+            };
+        });
+    });
 };
-
-inquirer.prompt({
-    name: "itemPick",
-    // type: "input",
-    message: "Please enter the Item ID of the product you would like to buy."
-        // validate: function(value) {
-        //     if (isNaN(value) === false) {
-        //         return true;
-        //     }
-        //     return false;
-        // }
-}, {
-    name: "quantity",
-    // type: "input",
-    message: "How many would you like to buy?"
-        // validate: function(value) {
-        //     if (isNaN(value) === false) {
-        //         return true;
-        //     }
-        //     return false;
-        // }
-}).then(function(answers) {
-    var newItemsToBuy = new ItemToBuy(answers.itemPick, answers.quantity);
-    // printInfo method is run to show that the newguy object was successfully created and filled
-    newItemsToBuy.printInfo();
-    console.log("ran without errors")
-});
+selection();
