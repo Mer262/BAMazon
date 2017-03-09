@@ -19,8 +19,7 @@ connection.connect(function(err) {
 });
 
 
-
-function selection() {
+function selectStatement() {
     connection.query('SELECT * FROM products', function(err, res) {
         if (err) throw err;
 
@@ -67,15 +66,32 @@ function selection() {
                     console.log("Your order for " + answer.howMany + " " + res[answer.itemNumber - 1].product_name +
                         "(s) has been placed.");
                     console.log("Your total is $" + total);
-                    // orderMore();
+                    additionalOrder();
                 });
 
 
             } else if (res[answer.itemNumber - 1].stock_quantity < answer.howMany) {
                 console.log("Sorry we only have " + res[answer.itemNumber - 1].stock_quantity + " items remaining.");
+                additionalOrder();
 
             };
         });
     });
 };
-selection();
+
+function additionalOrder() {
+    inquirer.prompt([{
+        type: "confirm",
+        message: "Would you like to order another item?",
+        name: "confirmation"
+
+    }, ]).then(function(answer2) {
+        if (answer2.confirmation) {
+            selectStatement();
+        } else {
+            console.log("Thank you for shopping with us!");
+            connection.end();
+        };
+    });
+};
+selectStatement();
